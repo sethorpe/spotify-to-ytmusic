@@ -114,7 +114,7 @@ Wraps the Spotipy library for easier usage.
 Wraps the ytmusicapi library.
 
 **Key Methods**:
-- `setup_oauth(filepath)` - Static method for OAuth setup
+- `setup_browser_auth(filepath)` - Static method for browser header authentication setup
 - `search_track(track)` - Search for track using ISRC or fuzzy matching
 - `create_playlist(name, description, privacy)` - Create new playlist
 - `add_tracks_to_playlist(playlist_id, track_ids)` - Add tracks to playlist
@@ -126,7 +126,7 @@ Wraps the ytmusicapi library.
 Click-based command-line interface.
 
 **Commands**:
-- `setup-ytmusic` - OAuth setup for YouTube Music
+- `setup-ytmusic` - Browser header authentication setup for YouTube Music
 - `list-playlists` - List Spotify playlists
 - `list-albums` - List saved albums
 - `migrate-playlist <name>` - Migrate single playlist

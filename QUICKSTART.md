@@ -73,12 +73,11 @@ poetry run spotify-to-ytmusic setup-ytmusic
 ```
 
 This will:
-1. Open your browser
-2. Ask you to log in to Google
-3. Request permissions
-4. Save authentication
+1. Prompt you to copy browser request headers from YouTube Music
+2. Guide you through the process step-by-step
+3. Save the authentication headers for future use
 
-Click "Allow" when prompted.
+Follow the on-screen instructions carefully to complete the setup.
 
 ### 5. Test It! (30 seconds)
 
@@ -125,9 +124,12 @@ Make sure you:
 2. Added your credentials without quotes
 3. Saved the file
 
-### "Browser didn't open for YouTube Music"
+### "YouTube Music setup failed"
 
-The setup command will show a URL. Copy it and paste it into your browser manually.
+Make sure you:
+1. Are logged into YouTube Music in your browser (Firefox or Chrome)
+2. Open the Network tab in Developer Tools before copying headers
+3. Copy the complete request headers as instructed
 
 ### "Playlist not found"
 

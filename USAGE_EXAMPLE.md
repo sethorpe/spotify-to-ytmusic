@@ -36,12 +36,11 @@ poetry run spotify-to-ytmusic setup-ytmusic
 ```
 
 This will:
-1. Open a browser window
-2. Ask you to log into your Google account
-3. Request permission to manage your YouTube Music library
-4. Save authentication tokens to `ytmusic_headers.json`
+1. Prompt you to copy browser request headers from YouTube Music
+2. Guide you through the process of extracting headers from your browser's Developer Tools
+3. Validate the headers and save them to `headers_auth.json`
 
-**Important**: Keep `ytmusic_headers.json` private and secure!
+**Important**: Keep `headers_auth.json` private and secure! These credentials are valid for approximately 2 years unless you log out of YouTube Music.
 
 ## Basic Usage
 

@@ -53,7 +53,7 @@ cp .env.example .env
 # Run the setup command to authenticate with YouTube Music
 poetry run spotify-to-ytmusic setup-ytmusic
 
-# Follow the prompts to authenticate via OAuth
+# Follow the prompts to copy browser headers for authentication
 ```
 
 ### 5. Start Migrating!
@@ -103,7 +103,7 @@ poetry run spotify-to-ytmusic migrate-all --limit 3
 
 ## How It Works
 
-1. **Authentication**: Uses OAuth to authenticate with both Spotify and YouTube Music
+1. **Authentication**: Uses OAuth for Spotify and browser header authentication for YouTube Music
 2. **Playlist Export**: Fetches playlist metadata and all track details from Spotify
 3. **Smart Matching**: Searches for tracks on YouTube Music using:
    - ISRC codes (International Standard Recording Code) for exact matches
@@ -137,7 +137,8 @@ spotify-to-ytmusic/
 
 ### "YouTube Music headers file not found"
 - Run `poetry run spotify-to-ytmusic setup-ytmusic` first
-- Follow the OAuth authentication flow completely
+- Follow the browser header authentication instructions completely
+- Make sure you're logged into YouTube Music in your browser before copying headers
 
 ### Tracks not found
 - Some tracks may not be available on YouTube Music
