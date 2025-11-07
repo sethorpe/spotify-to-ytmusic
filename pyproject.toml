@@ -1,0 +1,24 @@
+[project]
+name = "spotify-to-ytmusic"
+version = "0.1.0"
+description = "A CLI tool to migrate playlists and albums from Spotify to YouTube Music"
+authors = [
+    {name = "Seyi Thorpe"}
+]
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "spotipy (>=2.25.1,<3.0.0)",
+    "ytmusicapi (>=1.11.1,<2.0.0)",
+    "python-dotenv (>=1.2.1,<2.0.0)",
+    "click (>=8.3.0,<9.0.0)",
+    "tqdm (>=4.67.1,<5.0.0)"
+]
+
+[project.scripts]
+spotify-to-ytmusic = "spotify_to_ytmusic.cli:main"
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
