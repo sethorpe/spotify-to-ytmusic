@@ -2,6 +2,7 @@
 
 import os
 from typing import List, Optional, Dict, Any
+from tqdm import tqdm
 from ytmusicapi import YTMusic, setup
 from ..models.track import Track, Playlist, MigrationResult
 
@@ -166,23 +167,27 @@ class YouTubeMusicService:
         failed_tracks = []
         skipped_tracks = []
 
-        for i, track in enumerate(spotify_playlist.tracks, 1):
-            print(f"  [{i}/{len(spotify_playlist.tracks)}] Searching: {track}")
+        # Use tqdm for progress bar
+        with tqdm(total=len(spotify_playlist.tracks), desc="Searching tracks", unit="track") as pbar:
+            for track in spotify_playlist.tracks:
+                pbar.set_postfix_str(f"{track.name[:40]}...")
 
-            try:
-                video_id = self.search_track(track)
+                try:
+                    video_id = self.search_track(track)
 
-                if video_id:
-                    successful_track_ids.append(video_id)
-                    track.youtube_id = video_id
-                    print(f"    - Found")
-                else:
+                    if video_id:
+                        successful_track_ids.append(video_id)
+                        track.youtube_id = video_id
+                        pbar.set_postfix_str(f"Found: {track.name[:35]}...")
+                    else:
+                        failed_tracks.append(track)
+                        pbar.set_postfix_str(f"Not found: {track.name[:30]}...")
+
+                except Exception as e:
                     failed_tracks.append(track)
-                    print(f"    - Not found")
+                    pbar.set_postfix_str(f"Error: {str(e)[:40]}")
 
-            except Exception as e:
-                print(f"    - Error: {str(e)}")
-                failed_tracks.append(track)
+                pbar.update(1)
 
         # Add all successful tracks to the playlist
         if successful_track_ids:
