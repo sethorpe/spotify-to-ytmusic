@@ -55,7 +55,7 @@ pip install poetry
 ### 2. Install Dependencies
 
 ```bash
-cd /Users/seyithorpe/Document/@DevProjects/spotify-to-ytmusic
+cd /path/to/spotify-to-ytmusic
 poetry install
 ```
 

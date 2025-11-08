@@ -27,7 +27,7 @@ poetry --version
 ### 1. Install Dependencies (1 minute)
 
 ```bash
-cd /Users/seyithorpe/Document/@DevProjects/spotify-to-ytmusic
+cd /path/to/spotify-to-ytmusic
 poetry install
 ```
 

@@ -37,6 +37,7 @@ oauth.json
 migrations/
 cache/
 .cache
+SESSION_NOTES.md
 
 # Poetry
 poetry.lock
