@@ -30,10 +30,10 @@ class SpotifyService:
         )
 
     def get_user_playlists(self) -> List[Playlist]:
-        """Fetch all playlists for the authenticated user.
+        """Fetch all playlists for the authenticated user with full track details.
 
         Returns:
-            List of Playlist objects
+            List of Playlist objects with all tracks loaded
         """
         playlists = []
         results = self.sp.current_user_playlists()
@@ -42,6 +42,35 @@ class SpotifyService:
             for item in results["items"]:
                 playlist = self._fetch_playlist_details(item["id"])
                 playlists.append(playlist)
+
+            # Handle pagination
+            if results["next"]:
+                results = self.sp.next(results)
+            else:
+                break
+
+        return playlists
+
+    def get_user_playlists_summary(self) -> List[dict]:
+        """Fetch basic playlist information without loading all tracks.
+
+        This is much faster than get_user_playlists() for listing purposes.
+
+        Returns:
+            List of dictionaries with basic playlist info (name, track count, owner, etc.)
+        """
+        playlists = []
+        results = self.sp.current_user_playlists()
+
+        while results:
+            for item in results["items"]:
+                playlists.append({
+                    "name": item["name"],
+                    "track_count": item["tracks"]["total"],
+                    "owner": item["owner"]["display_name"],
+                    "public": item["public"],
+                    "id": item["id"],
+                })
 
             # Handle pagination
             if results["next"]:

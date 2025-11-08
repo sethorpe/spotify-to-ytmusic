@@ -87,7 +87,7 @@ def list_playlists():
         user_info = spotify.get_user_info()
         click.echo(f"Logged in as: {user_info['display_name']}\n")
 
-        playlists = spotify.get_user_playlists()
+        playlists = spotify.get_user_playlists_summary()
 
         if not playlists:
             click.echo("No playlists found.")
@@ -95,7 +95,7 @@ def list_playlists():
 
         click.echo(f"Found {len(playlists)} playlists:\n")
         for i, playlist in enumerate(playlists, 1):
-            click.echo(f"{i}. {playlist}")
+            click.echo(f"{i}. {playlist['name']} ({playlist['track_count']} tracks)")
 
     except Exception as e:
         click.echo(f"Error: {str(e)}", err=True)
