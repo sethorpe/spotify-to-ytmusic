@@ -7,6 +7,7 @@ A Python CLI tool to migrate your playlists and albums from Spotify to YouTube M
 - Export playlists from Spotify
 - Smart track matching using ISRC codes and fuzzy search
 - Migrate individual or all playlists
+- Real-time progress indicators with track-by-track updates
 - Detailed migration reports with success rates
 - Privacy settings (public/private playlists)
 - Album migration (coming soon)

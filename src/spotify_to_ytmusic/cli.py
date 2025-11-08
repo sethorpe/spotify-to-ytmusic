@@ -5,6 +5,7 @@ import sys
 import click
 from dotenv import load_dotenv
 from typing import Optional
+from tqdm import tqdm
 
 from .services.spotify_service import SpotifyService
 from .services.ytmusic_service import YouTubeMusicService
@@ -214,15 +215,16 @@ def migrate_all(public: bool, limit: Optional[int]):
 
         results = []
 
-        # Migrate each playlist
-        for i, playlist in enumerate(playlists, 1):
-            click.echo(f"\n{'=' * 60}")
-            click.echo(f"[{i}/{len(playlists)}] Migrating: {playlist.name}")
-            click.echo("=" * 60)
+        # Migrate each playlist with progress bar
+        with tqdm(total=len(playlists), desc="Overall progress", unit="playlist", position=0) as pbar:
+            for playlist in playlists:
+                pbar.set_postfix_str(f"Migrating: {playlist.name[:40]}...")
 
-            playlist.public = public
-            result = ytmusic.migrate_playlist(playlist)
-            results.append(result)
+                playlist.public = public
+                result = ytmusic.migrate_playlist(playlist)
+                results.append(result)
+
+                pbar.update(1)
 
         # Summary
         click.echo("\n" + "=" * 60)
