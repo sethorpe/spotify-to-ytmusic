@@ -51,7 +51,9 @@ def retry_with_backoff(
                         logger.error(
                             f"Max retries exceeded for {func.__name__} due to rate limit"
                         )
-                        raise MaxRetriesExceededError(func.__name__, max_attempts) from e
+                        raise MaxRetriesExceededError(
+                            func.__name__, max_attempts
+                        ) from e
 
                     # Use retry_after from exception if available
                     if hasattr(e, "retry_after") and e.retry_after:
@@ -73,7 +75,9 @@ def retry_with_backoff(
                         logger.error(
                             f"Max retries exceeded for {func.__name__}: {str(e)}"
                         )
-                        raise MaxRetriesExceededError(func.__name__, max_attempts) from e
+                        raise MaxRetriesExceededError(
+                            func.__name__, max_attempts
+                        ) from e
 
                     wait_time = min(delay, max_delay)
                     logger.warning(

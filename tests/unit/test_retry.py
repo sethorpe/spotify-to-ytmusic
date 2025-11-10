@@ -158,16 +158,19 @@ class TestRetryWithBackoff:
 class TestIsRateLimitError:
     """Tests for is_rate_limit_error function."""
 
-    @pytest.mark.parametrize("error_message,expected", [
-        ("rate limit exceeded", True),
-        ("too many requests", True),
-        ("HTTP 429 error", True),
-        ("quota exceeded", True),
-        ("request throttled", True),
-        ("Rate Limit Exceeded", True),  # case insensitive
-        ("server error", False),
-        ("connection timeout", False),
-    ])
+    @pytest.mark.parametrize(
+        "error_message,expected",
+        [
+            ("rate limit exceeded", True),
+            ("too many requests", True),
+            ("HTTP 429 error", True),
+            ("quota exceeded", True),
+            ("request throttled", True),
+            ("Rate Limit Exceeded", True),  # case insensitive
+            ("server error", False),
+            ("connection timeout", False),
+        ],
+    )
     def test_detects_rate_limit_errors(self, error_message, expected):
         """Should correctly identify rate limit errors."""
         error = Exception(error_message)
@@ -177,17 +180,20 @@ class TestIsRateLimitError:
 class TestIsNetworkError:
     """Tests for is_network_error function."""
 
-    @pytest.mark.parametrize("error_message,expected", [
-        ("connection refused", True),
-        ("request timeout", True),
-        ("network error", True),
-        ("DNS resolution failed", True),
-        ("host unreachable", True),
-        ("socket error", True),
-        ("Connection Timeout", True),  # case insensitive
-        ("validation error", False),
-        ("rate limit", False),
-    ])
+    @pytest.mark.parametrize(
+        "error_message,expected",
+        [
+            ("connection refused", True),
+            ("request timeout", True),
+            ("network error", True),
+            ("DNS resolution failed", True),
+            ("host unreachable", True),
+            ("socket error", True),
+            ("Connection Timeout", True),  # case insensitive
+            ("validation error", False),
+            ("rate limit", False),
+        ],
+    )
     def test_detects_network_errors(self, error_message, expected):
         """Should correctly identify network errors."""
         error = Exception(error_message)

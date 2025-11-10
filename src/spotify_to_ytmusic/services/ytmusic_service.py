@@ -144,7 +144,9 @@ class YouTubeMusicService:
         except Exception as e:
             # Categorize the error for better handling
             categorized_error = categorize_api_error(e, "YouTube Music")
-            logger.error(f"Error searching for track {track.name}: {str(categorized_error)}")
+            logger.error(
+                f"Error searching for track {track.name}: {str(categorized_error)}"
+            )
             raise categorized_error from e
 
     def _search_with_error_handling(self, query: str, **kwargs) -> List[Dict]:
@@ -263,7 +265,9 @@ class YouTubeMusicService:
         skipped_tracks = []
 
         # Use tqdm for progress bar
-        with tqdm(total=len(spotify_playlist.tracks), desc="Searching tracks", unit="track") as pbar:
+        with tqdm(
+            total=len(spotify_playlist.tracks), desc="Searching tracks", unit="track"
+        ) as pbar:
             for track in spotify_playlist.tracks:
                 pbar.set_postfix_str(f"{track.name[:40]}...")
 
@@ -280,13 +284,17 @@ class YouTubeMusicService:
 
                 except (RateLimitError, NetworkError, APIError) as e:
                     # These errors have already been retried, so we skip the track
-                    logger.warning(f"Failed to search track after retries: {track.name} - {str(e)}")
+                    logger.warning(
+                        f"Failed to search track after retries: {track.name} - {str(e)}"
+                    )
                     failed_tracks.append(track)
                     pbar.set_postfix_str(f"Error: {str(e)[:40]}")
 
                 except Exception as e:
                     # Unexpected errors
-                    logger.error(f"Unexpected error searching track {track.name}: {str(e)}")
+                    logger.error(
+                        f"Unexpected error searching track {track.name}: {str(e)}"
+                    )
                     failed_tracks.append(track)
                     pbar.set_postfix_str(f"Error: {str(e)[:40]}")
 

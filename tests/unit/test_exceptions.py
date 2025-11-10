@@ -197,4 +197,7 @@ class TestMaxRetriesExceededError:
     def test_message_formatting(self):
         """MaxRetriesExceededError should format message correctly."""
         error = MaxRetriesExceededError("search_track", 3)
-        assert str(error) == "Maximum retry attempts (3) exceeded for operation: search_track"
+        assert (
+            str(error)
+            == "Maximum retry attempts (3) exceeded for operation: search_track"
+        )

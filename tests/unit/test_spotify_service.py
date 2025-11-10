@@ -169,6 +169,7 @@ class TestGetUserPlaylists:
 
         # The retry decorator will retry 3 times before raising MaxRetriesExceededError
         from spotify_to_ytmusic.exceptions import MaxRetriesExceededError
+
         with pytest.raises(MaxRetriesExceededError):
             service.get_user_playlists()
 

@@ -236,6 +236,7 @@ class TestCreatePlaylist:
 
         # The retry decorator will retry 3 times before raising MaxRetriesExceededError
         from spotify_to_ytmusic.exceptions import MaxRetriesExceededError
+
         with pytest.raises(MaxRetriesExceededError):
             service.create_playlist("My Playlist")
 
@@ -299,8 +300,20 @@ class TestMigratePlaylist:
 
         # Mock track searches (all successful)
         mock_ytmusic_instance.search.side_effect = [
-            [{"videoId": "video1", "title": "Track 1", "artists": [{"name": "Artist 1"}]}],
-            [{"videoId": "video2", "title": "Track 2", "artists": [{"name": "Artist 2"}]}],
+            [
+                {
+                    "videoId": "video1",
+                    "title": "Track 1",
+                    "artists": [{"name": "Artist 1"}],
+                }
+            ],
+            [
+                {
+                    "videoId": "video2",
+                    "title": "Track 2",
+                    "artists": [{"name": "Artist 2"}],
+                }
+            ],
         ]
 
         # Mock adding tracks
@@ -339,7 +352,13 @@ class TestMigratePlaylist:
 
         # First track succeeds, second fails
         mock_ytmusic_instance.search.side_effect = [
-            [{"videoId": "video1", "title": "Track 1", "artists": [{"name": "Artist 1"}]}],
+            [
+                {
+                    "videoId": "video1",
+                    "title": "Track 1",
+                    "artists": [{"name": "Artist 1"}],
+                }
+            ],
             [],  # No results for second track
         ]
 
