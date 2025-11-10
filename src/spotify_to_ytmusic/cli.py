@@ -54,7 +54,9 @@ def get_ytmusic_service() -> YouTubeMusicService:
         click.echo(f"Configuration Error: {str(e)}", err=True)
         sys.exit(1)
     except Exception as e:
-        click.echo(f"Unexpected error initializing YouTube Music service: {str(e)}", err=True)
+        click.echo(
+            f"Unexpected error initializing YouTube Music service: {str(e)}", err=True
+        )
         sys.exit(1)
 
 
@@ -269,7 +271,9 @@ def migrate_all(public: bool, limit: Optional[int]):
         results = []
 
         # Migrate each playlist with progress bar
-        with tqdm(total=len(playlists), desc="Overall progress", unit="playlist", position=0) as pbar:
+        with tqdm(
+            total=len(playlists), desc="Overall progress", unit="playlist", position=0
+        ) as pbar:
             for playlist in playlists:
                 pbar.set_postfix_str(f"Migrating: {playlist.name[:40]}...")
 
@@ -307,10 +311,14 @@ def migrate_all(public: bool, limit: Optional[int]):
         sys.exit(1)
     except RateLimitError as e:
         click.echo(f"\nRate Limit Error: {str(e)}", err=True)
-        click.echo("\nYou've hit API rate limits while migrating multiple playlists.", err=True)
+        click.echo(
+            "\nYou've hit API rate limits while migrating multiple playlists.", err=True
+        )
         click.echo("\nSuggestions:", err=True)
         click.echo("  - Wait 10-15 minutes before trying again", err=True)
-        click.echo("  - Use --limit option to migrate fewer playlists at once", err=True)
+        click.echo(
+            "  - Use --limit option to migrate fewer playlists at once", err=True
+        )
         click.echo("  - Migrate playlists one at a time instead", err=True)
         sys.exit(1)
     except NetworkError as e:

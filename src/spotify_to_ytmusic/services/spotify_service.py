@@ -33,7 +33,9 @@ class SpotifyService:
         Raises:
             AuthenticationError: If authentication fails
         """
-        self.scope = "user-library-read playlist-read-private playlist-read-collaborative"
+        self.scope = (
+            "user-library-read playlist-read-private playlist-read-collaborative"
+        )
 
         try:
             self.sp = spotipy.Spotify(
@@ -116,13 +118,15 @@ class SpotifyService:
 
             while results:
                 for item in results["items"]:
-                    playlists.append({
-                        "name": item["name"],
-                        "track_count": item["tracks"]["total"],
-                        "owner": item["owner"]["display_name"],
-                        "public": item["public"],
-                        "id": item["id"],
-                    })
+                    playlists.append(
+                        {
+                            "name": item["name"],
+                            "track_count": item["tracks"]["total"],
+                            "owner": item["owner"]["display_name"],
+                            "public": item["public"],
+                            "id": item["id"],
+                        }
+                    )
 
                 # Handle pagination
                 if results["next"]:
