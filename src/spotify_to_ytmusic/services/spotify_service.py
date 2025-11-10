@@ -1,10 +1,22 @@
 """Service for interacting with Spotify API."""
 
 import os
+import logging
 from typing import List, Optional
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
+from spotipy.exceptions import SpotifyException
 from ..models.track import Track, Playlist, Album
+from ..exceptions import (
+    AuthenticationError,
+    RateLimitError,
+    NetworkError,
+    PlaylistNotFoundError,
+    APIError,
+)
+from ..utils.retry import retry_with_backoff, categorize_api_error
+
+logger = logging.getLogger(__name__)
 
 
 class SpotifyService:
@@ -17,40 +29,73 @@ class SpotifyService:
             client_id: Spotify app client ID
             client_secret: Spotify app client secret
             redirect_uri: OAuth redirect URI
+
+        Raises:
+            AuthenticationError: If authentication fails
         """
         self.scope = "user-library-read playlist-read-private playlist-read-collaborative"
 
-        self.sp = spotipy.Spotify(
-            auth_manager=SpotifyOAuth(
-                client_id=client_id,
-                client_secret=client_secret,
-                redirect_uri=redirect_uri,
-                scope=self.scope,
+        try:
+            self.sp = spotipy.Spotify(
+                auth_manager=SpotifyOAuth(
+                    client_id=client_id,
+                    client_secret=client_secret,
+                    redirect_uri=redirect_uri,
+                    scope=self.scope,
+                )
             )
-        )
+        except Exception as e:
+            raise AuthenticationError(
+                "Spotify",
+                f"Failed to initialize Spotify client: {str(e)}\n"
+                "Please check your credentials in .env file.",
+            )
 
+    @retry_with_backoff(
+        max_attempts=3,
+        initial_delay=1.0,
+        exceptions=(NetworkError, RateLimitError, APIError),
+    )
     def get_user_playlists(self) -> List[Playlist]:
         """Fetch all playlists for the authenticated user with full track details.
 
         Returns:
             List of Playlist objects with all tracks loaded
+
+        Raises:
+            RateLimitError: If rate limit is exceeded after retries
+            NetworkError: If network errors persist after retries
+            APIError: If API errors persist after retries
         """
         playlists = []
-        results = self.sp.current_user_playlists()
 
-        while results:
-            for item in results["items"]:
-                playlist = self._fetch_playlist_details(item["id"])
-                playlists.append(playlist)
+        try:
+            results = self.sp.current_user_playlists()
 
-            # Handle pagination
-            if results["next"]:
-                results = self.sp.next(results)
-            else:
-                break
+            while results:
+                for item in results["items"]:
+                    playlist = self._fetch_playlist_details(item["id"])
+                    playlists.append(playlist)
 
-        return playlists
+                # Handle pagination
+                if results["next"]:
+                    results = self.sp.next(results)
+                else:
+                    break
 
+            logger.info(f"Fetched {len(playlists)} playlists from Spotify")
+            return playlists
+
+        except SpotifyException as e:
+            raise categorize_api_error(e, "Spotify") from e
+        except Exception as e:
+            raise categorize_api_error(e, "Spotify") from e
+
+    @retry_with_backoff(
+        max_attempts=3,
+        initial_delay=1.0,
+        exceptions=(NetworkError, RateLimitError, APIError),
+    )
     def get_user_playlists_summary(self) -> List[dict]:
         """Fetch basic playlist information without loading all tracks.
 
@@ -58,27 +103,40 @@ class SpotifyService:
 
         Returns:
             List of dictionaries with basic playlist info (name, track count, owner, etc.)
+
+        Raises:
+            RateLimitError: If rate limit is exceeded after retries
+            NetworkError: If network errors persist after retries
+            APIError: If API errors persist after retries
         """
         playlists = []
-        results = self.sp.current_user_playlists()
 
-        while results:
-            for item in results["items"]:
-                playlists.append({
-                    "name": item["name"],
-                    "track_count": item["tracks"]["total"],
-                    "owner": item["owner"]["display_name"],
-                    "public": item["public"],
-                    "id": item["id"],
-                })
+        try:
+            results = self.sp.current_user_playlists()
 
-            # Handle pagination
-            if results["next"]:
-                results = self.sp.next(results)
-            else:
-                break
+            while results:
+                for item in results["items"]:
+                    playlists.append({
+                        "name": item["name"],
+                        "track_count": item["tracks"]["total"],
+                        "owner": item["owner"]["display_name"],
+                        "public": item["public"],
+                        "id": item["id"],
+                    })
 
-        return playlists
+                # Handle pagination
+                if results["next"]:
+                    results = self.sp.next(results)
+                else:
+                    break
+
+            logger.info(f"Fetched summary for {len(playlists)} playlists from Spotify")
+            return playlists
+
+        except SpotifyException as e:
+            raise categorize_api_error(e, "Spotify") from e
+        except Exception as e:
+            raise categorize_api_error(e, "Spotify") from e
 
     def get_playlist_by_name(self, name: str) -> Optional[Playlist]:
         """Find a playlist by name.
@@ -88,12 +146,29 @@ class SpotifyService:
 
         Returns:
             Playlist object if found, None otherwise
+
+        Raises:
+            PlaylistNotFoundError: If playlist is not found
+            RateLimitError: If rate limit is exceeded after retries
+            NetworkError: If network errors persist after retries
+            APIError: If API errors persist after retries
         """
-        playlists = self.get_user_playlists()
-        for playlist in playlists:
-            if playlist.name.lower() == name.lower():
-                return playlist
-        return None
+        try:
+            playlists = self.get_user_playlists()
+            for playlist in playlists:
+                if playlist.name.lower() == name.lower():
+                    logger.info(f"Found playlist: {name}")
+                    return playlist
+
+            # Playlist not found
+            logger.warning(f"Playlist not found: {name}")
+            return None
+
+        except (RateLimitError, NetworkError, APIError):
+            # Re-raise already categorized errors
+            raise
+        except Exception as e:
+            raise categorize_api_error(e, "Spotify") from e
 
     def get_playlist_by_id(self, playlist_id: str) -> Playlist:
         """Fetch a specific playlist by ID.
