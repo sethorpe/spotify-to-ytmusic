@@ -10,10 +10,23 @@ from tqdm import tqdm
 from .services.spotify_service import SpotifyService
 from .services.ytmusic_service import YouTubeMusicService
 from .models.track import MigrationResult
+from .exceptions import (
+    AuthenticationError,
+    ConfigurationError,
+    RateLimitError,
+    NetworkError,
+    PlaylistNotFoundError,
+    APIError,
+    MaxRetriesExceededError,
+)
+from .logging_config import setup_logging
 
 
 # Load environment variables
 load_dotenv()
+
+# Setup logging
+setup_logging()
 
 
 def get_spotify_service() -> SpotifyService:
@@ -37,10 +50,11 @@ def get_ytmusic_service() -> YouTubeMusicService:
     """Initialize and return a YouTube Music service instance."""
     try:
         return YouTubeMusicService()
-    except (FileNotFoundError, ValueError) as e:
-        click.echo(f"Error: {str(e)}", err=True)
-        click.echo("\nPlease run the setup command first:")
-        click.echo("  poetry run spotify-to-ytmusic setup-ytmusic")
+    except ConfigurationError as e:
+        click.echo(f"Configuration Error: {str(e)}", err=True)
+        sys.exit(1)
+    except Exception as e:
+        click.echo(f"Unexpected error initializing YouTube Music service: {str(e)}", err=True)
         sys.exit(1)
 
 
@@ -97,8 +111,22 @@ def list_playlists():
         for i, playlist in enumerate(playlists, 1):
             click.echo(f"{i}. {playlist['name']} ({playlist['track_count']} tracks)")
 
+    except RateLimitError as e:
+        click.echo(f"\nRate Limit Error: {str(e)}", err=True)
+        click.echo("\nSuggestions:", err=True)
+        click.echo("  - Wait a few minutes before trying again", err=True)
+        sys.exit(1)
+    except NetworkError as e:
+        click.echo(f"\nNetwork Error: {str(e)}", err=True)
+        click.echo("\nSuggestions:", err=True)
+        click.echo("  - Check your internet connection", err=True)
+        click.echo("  - Try again in a few moments", err=True)
+        sys.exit(1)
+    except (AuthenticationError, ConfigurationError, APIError) as e:
+        click.echo(f"\nError: {str(e)}", err=True)
+        sys.exit(1)
     except Exception as e:
-        click.echo(f"Error: {str(e)}", err=True)
+        click.echo(f"\nUnexpected Error: {str(e)}", err=True)
         sys.exit(1)
 
 
@@ -172,8 +200,33 @@ def migrate_playlist(playlist_name: str, public: bool):
             for track in result.failed_tracks:
                 click.echo(f"  - {track}")
 
+    except MaxRetriesExceededError as e:
+        click.echo(f"\nMax Retries Exceeded: {str(e)}", err=True)
+        click.echo("\nThe operation failed after multiple retry attempts.", err=True)
+        click.echo("\nSuggestions:", err=True)
+        click.echo("  - Check your internet connection", err=True)
+        click.echo("  - Verify that the YouTube Music service is operational", err=True)
+        click.echo("  - Try again later", err=True)
+        sys.exit(1)
+    except RateLimitError as e:
+        click.echo(f"\nRate Limit Error: {str(e)}", err=True)
+        click.echo("\nYou've hit API rate limits.", err=True)
+        click.echo("\nSuggestions:", err=True)
+        click.echo("  - Wait 10-15 minutes before trying again", err=True)
+        click.echo("  - Reduce the number of playlists migrated at once", err=True)
+        sys.exit(1)
+    except NetworkError as e:
+        click.echo(f"\nNetwork Error: {str(e)}", err=True)
+        click.echo("\nSuggestions:", err=True)
+        click.echo("  - Check your internet connection", err=True)
+        click.echo("  - Try again in a few moments", err=True)
+        sys.exit(1)
+    except (AuthenticationError, ConfigurationError, APIError) as e:
+        click.echo(f"\nError: {str(e)}", err=True)
+        sys.exit(1)
     except Exception as e:
-        click.echo(f"\nError during migration: {str(e)}", err=True)
+        click.echo(f"\nUnexpected error during migration: {str(e)}", err=True)
+        click.echo("\nPlease report this issue if it persists.", err=True)
         sys.exit(1)
 
 
@@ -244,8 +297,34 @@ def migrate_all(public: bool, limit: Optional[int]):
             success_rate = (successful_tracks / total_tracks) * 100
             click.echo(f"Overall success rate: {success_rate:.1f}%")
 
+    except MaxRetriesExceededError as e:
+        click.echo(f"\nMax Retries Exceeded: {str(e)}", err=True)
+        click.echo("\nThe operation failed after multiple retry attempts.", err=True)
+        click.echo("\nSuggestions:", err=True)
+        click.echo("  - Check your internet connection", err=True)
+        click.echo("  - Verify that the YouTube Music service is operational", err=True)
+        click.echo("  - Try migrating playlists one at a time", err=True)
+        sys.exit(1)
+    except RateLimitError as e:
+        click.echo(f"\nRate Limit Error: {str(e)}", err=True)
+        click.echo("\nYou've hit API rate limits while migrating multiple playlists.", err=True)
+        click.echo("\nSuggestions:", err=True)
+        click.echo("  - Wait 10-15 minutes before trying again", err=True)
+        click.echo("  - Use --limit option to migrate fewer playlists at once", err=True)
+        click.echo("  - Migrate playlists one at a time instead", err=True)
+        sys.exit(1)
+    except NetworkError as e:
+        click.echo(f"\nNetwork Error: {str(e)}", err=True)
+        click.echo("\nSuggestions:", err=True)
+        click.echo("  - Check your internet connection", err=True)
+        click.echo("  - Try again in a few moments", err=True)
+        sys.exit(1)
+    except (AuthenticationError, ConfigurationError, APIError) as e:
+        click.echo(f"\nError: {str(e)}", err=True)
+        sys.exit(1)
     except Exception as e:
-        click.echo(f"\nError during migration: {str(e)}", err=True)
+        click.echo(f"\nUnexpected error during migration: {str(e)}", err=True)
+        click.echo("\nPlease report this issue if it persists.", err=True)
         sys.exit(1)
 
 

@@ -1,10 +1,22 @@
 """Service for interacting with YouTube Music API."""
 
 import os
+import logging
 from typing import List, Optional, Dict, Any
 from tqdm import tqdm
 from ytmusicapi import YTMusic, setup
 from ..models.track import Track, Playlist, MigrationResult
+from ..exceptions import (
+    AuthenticationError,
+    ConfigurationError,
+    RateLimitError,
+    NetworkError,
+    TrackNotFoundError,
+    APIError,
+)
+from ..utils.retry import retry_with_backoff, categorize_api_error
+
+logger = logging.getLogger(__name__)
 
 
 class YouTubeMusicService:
@@ -20,12 +32,19 @@ class YouTubeMusicService:
             headers_file = os.getenv("YTMUSIC_HEADERS_FILE", "headers_auth.json")
 
         if not os.path.exists(headers_file):
-            raise FileNotFoundError(
+            raise ConfigurationError(
                 f"YouTube Music headers file not found: {headers_file}\n"
-                "Please run the setup command first to authenticate with YouTube Music."
+                "Please run: poetry run spotify-to-ytmusic setup-ytmusic"
             )
 
-        self.ytmusic = YTMusic(headers_file)
+        try:
+            self.ytmusic = YTMusic(headers_file)
+        except Exception as e:
+            raise ConfigurationError(
+                f"Failed to initialize YouTube Music client: {str(e)}\n"
+                "Your headers file may be corrupted or expired.\n"
+                "Please run: poetry run spotify-to-ytmusic setup-ytmusic"
+            )
 
     @staticmethod
     def setup_browser_auth(filepath: str = "headers_auth.json") -> None:
@@ -53,62 +72,108 @@ class YouTubeMusicService:
             print("\nError: ytmusicapi command not found!")
             print("This shouldn't happen as ytmusicapi is installed with this package.")
 
+    @retry_with_backoff(
+        max_attempts=3,
+        initial_delay=1.0,
+        exceptions=(NetworkError, RateLimitError, APIError),
+    )
     def search_track(self, track: Track) -> Optional[str]:
-        """Search for a track on YouTube Music.
+        """Search for a track on YouTube Music with retry logic.
 
         Args:
             track: Track object to search for
 
         Returns:
             YouTube Music video ID if found, None otherwise
+
+        Raises:
+            RateLimitError: If rate limit is exceeded after retries
+            NetworkError: If network errors persist after retries
+            APIError: If API errors persist after retries
         """
-        # Try searching with ISRC first, but validate the result
-        if track.isrc:
-            isrc_results = self.ytmusic.search(track.isrc, filter="songs", limit=3)
-            if isrc_results:
-                # Validate ISRC result: check if artist matches
-                for result in isrc_results:
-                    result_artists = " ".join(
-                        [artist["name"].lower() for artist in result.get("artists", [])]
-                    )
-                    # Check if at least one artist from Spotify matches
-                    if any(artist.lower() in result_artists for artist in track.artists):
+        try:
+            # Try searching with ISRC first, but validate the result
+            if track.isrc:
+                isrc_results = self._search_with_error_handling(
+                    track.isrc, filter="songs", limit=3
+                )
+                if isrc_results:
+                    # Validate ISRC result: check if artist matches
+                    for result in isrc_results:
+                        result_artists = " ".join(
+                            [
+                                artist["name"].lower()
+                                for artist in result.get("artists", [])
+                            ]
+                        )
+                        # Check if at least one artist from Spotify matches
+                        if any(
+                            artist.lower() in result_artists for artist in track.artists
+                        ):
+                            return result["videoId"]
+                    # If no ISRC result matches the artist, fall through to name search
+
+            # Fall back to name and artist search
+            query = track.search_query
+            results = self._search_with_error_handling(query, filter="songs", limit=5)
+
+            if not results:
+                logger.debug(f"No results found for track: {track.name}")
+                return None
+
+            # Try to find the best match
+            for result in results:
+                # Simple matching: check if track name and artist match
+                result_title = result.get("title", "").lower()
+                result_artists = " ".join(
+                    [artist["name"].lower() for artist in result.get("artists", [])]
+                )
+
+                track_name_lower = track.name.lower()
+
+                # Check if both name and at least one artist match
+                if track_name_lower in result_title or result_title in track_name_lower:
+                    if any(
+                        artist.lower() in result_artists for artist in track.artists
+                    ):
                         return result["videoId"]
-                # If no ISRC result matches the artist, fall through to name search
 
-        # Fall back to name and artist search
-        query = track.search_query
-        results = self.ytmusic.search(query, filter="songs", limit=5)
+            # If no good match found, return the first result
+            return results[0]["videoId"] if results else None
 
-        if not results:
-            return None
+        except Exception as e:
+            # Categorize the error for better handling
+            categorized_error = categorize_api_error(e, "YouTube Music")
+            logger.error(f"Error searching for track {track.name}: {str(categorized_error)}")
+            raise categorized_error from e
 
-        # Try to find the best match
-        for result in results:
-            # Simple matching: check if track name and artist match
-            result_title = result.get("title", "").lower()
-            result_artists = " ".join(
-                [artist["name"].lower() for artist in result.get("artists", [])]
-            )
+    def _search_with_error_handling(self, query: str, **kwargs) -> List[Dict]:
+        """Perform a search with proper error handling.
 
-            track_name_lower = track.name.lower()
-            track_artists_lower = " ".join([artist.lower() for artist in track.artists])
+        Args:
+            query: Search query
+            **kwargs: Additional arguments for ytmusic.search()
 
-            # Check if both name and at least one artist match
-            if track_name_lower in result_title or result_title in track_name_lower:
-                if any(
-                    artist.lower() in result_artists
-                    for artist in track.artists
-                ):
-                    return result["videoId"]
+        Returns:
+            List of search results
 
-        # If no good match found, return the first result
-        return results[0]["videoId"] if results else None
+        Raises:
+            Categorized exceptions based on the error type
+        """
+        try:
+            return self.ytmusic.search(query, **kwargs)
+        except Exception as e:
+            raise categorize_api_error(e, "YouTube Music") from e
 
+    @retry_with_backoff(
+        max_attempts=3,
+        initial_delay=2.0,
+        exceptions=(NetworkError, RateLimitError, APIError),
+    )
     def create_playlist(
         self, name: str, description: str = "", privacy: str = "PRIVATE"
     ) -> str:
-        """Create a new playlist on YouTube Music.
+        """Create a new playlist on YouTube Music with retry logic.
 
         Args:
             name: Playlist name
@@ -117,16 +182,32 @@ class YouTubeMusicService:
 
         Returns:
             YouTube Music playlist ID
-        """
-        playlist_id = self.ytmusic.create_playlist(
-            title=name, description=description, privacy_status=privacy
-        )
-        return playlist_id
 
+        Raises:
+            RateLimitError: If rate limit is exceeded after retries
+            NetworkError: If network errors persist after retries
+            APIError: If API errors persist after retries
+        """
+        try:
+            playlist_id = self.ytmusic.create_playlist(
+                title=name, description=description, privacy_status=privacy
+            )
+            logger.info(f"Created playlist: {name} (ID: {playlist_id})")
+            return playlist_id
+        except Exception as e:
+            categorized_error = categorize_api_error(e, "YouTube Music")
+            logger.error(f"Error creating playlist {name}: {str(categorized_error)}")
+            raise categorized_error from e
+
+    @retry_with_backoff(
+        max_attempts=3,
+        initial_delay=2.0,
+        exceptions=(NetworkError, RateLimitError, APIError),
+    )
     def add_tracks_to_playlist(
         self, playlist_id: str, track_ids: List[str]
     ) -> Dict[str, Any]:
-        """Add tracks to a YouTube Music playlist.
+        """Add tracks to a YouTube Music playlist with retry logic.
 
         Args:
             playlist_id: YouTube Music playlist ID
@@ -134,11 +215,25 @@ class YouTubeMusicService:
 
         Returns:
             Response from the API
+
+        Raises:
+            RateLimitError: If rate limit is exceeded after retries
+            NetworkError: If network errors persist after retries
+            APIError: If API errors persist after retries
         """
         if not track_ids:
             return {"status": "No tracks to add"}
 
-        return self.ytmusic.add_playlist_items(playlist_id, track_ids)
+        try:
+            response = self.ytmusic.add_playlist_items(playlist_id, track_ids)
+            logger.info(f"Added {len(track_ids)} tracks to playlist {playlist_id}")
+            return response
+        except Exception as e:
+            categorized_error = categorize_api_error(e, "YouTube Music")
+            logger.error(
+                f"Error adding tracks to playlist {playlist_id}: {str(categorized_error)}"
+            )
+            raise categorized_error from e
 
     def migrate_playlist(self, spotify_playlist: Playlist) -> MigrationResult:
         """Migrate a Spotify playlist to YouTube Music.
@@ -183,7 +278,15 @@ class YouTubeMusicService:
                         failed_tracks.append(track)
                         pbar.set_postfix_str(f"Not found: {track.name[:30]}...")
 
+                except (RateLimitError, NetworkError, APIError) as e:
+                    # These errors have already been retried, so we skip the track
+                    logger.warning(f"Failed to search track after retries: {track.name} - {str(e)}")
+                    failed_tracks.append(track)
+                    pbar.set_postfix_str(f"Error: {str(e)[:40]}")
+
                 except Exception as e:
+                    # Unexpected errors
+                    logger.error(f"Unexpected error searching track {track.name}: {str(e)}")
                     failed_tracks.append(track)
                     pbar.set_postfix_str(f"Error: {str(e)[:40]}")
 
