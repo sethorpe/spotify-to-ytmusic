@@ -4,12 +4,14 @@ import os
 import sys
 import click
 from dotenv import load_dotenv
-from typing import Optional
+from pathlib import Path
+from typing import Optional, List
 from tqdm import tqdm
 
 from .services.spotify_service import SpotifyService
 from .services.ytmusic_service import YouTubeMusicService
 from .models.track import MigrationResult
+from .utils.report_exporter import ReportExporter, generate_default_filename
 from .exceptions import (
     AuthenticationError,
     ConfigurationError,
@@ -58,6 +60,43 @@ def get_ytmusic_service() -> YouTubeMusicService:
             f"Unexpected error initializing YouTube Music service: {str(e)}", err=True
         )
         sys.exit(1)
+
+
+def export_reports(
+    results: List[MigrationResult],
+    export_json: Optional[str],
+    export_csv: Optional[str],
+    export_failed: Optional[str],
+    csv_summary: bool,
+) -> None:
+    """Export migration results to specified file formats.
+
+    Args:
+        results: List of migration results to export
+        export_json: Path for JSON export (None to skip)
+        export_csv: Path for CSV export (None to skip)
+        export_failed: Path for failed tracks export (None to skip)
+        csv_summary: If True, export CSV summary instead of detailed CSV
+    """
+    if export_json:
+        json_path = Path(export_json)
+        ReportExporter.export_to_json(results, json_path)
+        click.echo(f"\n✓ JSON report exported to: {json_path}")
+
+    if export_csv:
+        csv_path = Path(export_csv)
+        ReportExporter.export_to_csv(
+            results, csv_path, include_track_details=not csv_summary
+        )
+        report_type = "summary" if csv_summary else "detailed"
+        click.echo(f"✓ CSV {report_type} report exported to: {csv_path}")
+
+    if export_failed:
+        failed_path = Path(export_failed)
+        # Determine format from extension
+        format_type = "json" if failed_path.suffix == ".json" else "csv"
+        ReportExporter.export_failed_tracks(results, failed_path, format=format_type)
+        click.echo(f"✓ Failed tracks exported to: {failed_path}")
 
 
 @click.group()
@@ -162,7 +201,38 @@ def list_albums():
     default=False,
     help="Make the YouTube Music playlist public or private (default: private)",
 )
-def migrate_playlist(playlist_name: str, public: bool):
+@click.option(
+    "--export-json",
+    type=click.Path(),
+    default=None,
+    help="Export migration report to JSON file",
+)
+@click.option(
+    "--export-csv",
+    type=click.Path(),
+    default=None,
+    help="Export migration report to CSV file",
+)
+@click.option(
+    "--export-failed",
+    type=click.Path(),
+    default=None,
+    help="Export failed tracks to a separate file (JSON or CSV based on extension)",
+)
+@click.option(
+    "--csv-summary",
+    is_flag=True,
+    default=False,
+    help="Export CSV as summary (playlist-level) instead of detailed (track-level)",
+)
+def migrate_playlist(
+    playlist_name: str,
+    public: bool,
+    export_json: Optional[str],
+    export_csv: Optional[str],
+    export_failed: Optional[str],
+    csv_summary: bool,
+):
     """Migrate a specific Spotify playlist to YouTube Music.
 
     PLAYLIST_NAME: The name of the playlist to migrate (case-insensitive)
@@ -201,6 +271,11 @@ def migrate_playlist(playlist_name: str, public: bool):
             click.echo("\nFailed tracks:")
             for track in result.failed_tracks:
                 click.echo(f"  - {track}")
+
+        # Export reports if requested
+        export_reports(
+            [result], export_json, export_csv, export_failed, csv_summary
+        )
 
     except MaxRetriesExceededError as e:
         click.echo(f"\nMax Retries Exceeded: {str(e)}", err=True)
@@ -244,7 +319,38 @@ def migrate_playlist(playlist_name: str, public: bool):
     default=None,
     help="Limit the number of playlists to migrate",
 )
-def migrate_all(public: bool, limit: Optional[int]):
+@click.option(
+    "--export-json",
+    type=click.Path(),
+    default=None,
+    help="Export migration report to JSON file",
+)
+@click.option(
+    "--export-csv",
+    type=click.Path(),
+    default=None,
+    help="Export migration report to CSV file",
+)
+@click.option(
+    "--export-failed",
+    type=click.Path(),
+    default=None,
+    help="Export failed tracks to a separate file (JSON or CSV based on extension)",
+)
+@click.option(
+    "--csv-summary",
+    is_flag=True,
+    default=False,
+    help="Export CSV as summary (playlist-level) instead of detailed (track-level)",
+)
+def migrate_all(
+    public: bool,
+    limit: Optional[int],
+    export_json: Optional[str],
+    export_csv: Optional[str],
+    export_failed: Optional[str],
+    csv_summary: bool,
+):
     """Migrate all your Spotify playlists to YouTube Music.
 
     WARNING: This may take a long time depending on how many playlists you have.
@@ -300,6 +406,9 @@ def migrate_all(public: bool, limit: Optional[int]):
         if total_tracks > 0:
             success_rate = (successful_tracks / total_tracks) * 100
             click.echo(f"Overall success rate: {success_rate:.1f}%")
+
+        # Export reports if requested
+        export_reports(results, export_json, export_csv, export_failed, csv_summary)
 
     except MaxRetriesExceededError as e:
         click.echo(f"\nMax Retries Exceeded: {str(e)}", err=True)
