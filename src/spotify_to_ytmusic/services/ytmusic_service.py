@@ -227,7 +227,7 @@ class YouTubeMusicService:
             return {"status": "No tracks to add"}
 
         try:
-            response = self.ytmusic.add_playlist_items(playlist_id, track_ids)
+            response = self.ytmusic.add_playlist_items(playlist_id, track_ids, duplicates=True)
             logger.info(f"Added {len(track_ids)} tracks to playlist {playlist_id}")
             return response
         except Exception as e:
