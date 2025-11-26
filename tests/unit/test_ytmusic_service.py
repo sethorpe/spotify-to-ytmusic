@@ -267,6 +267,7 @@ class TestAddTracksToPlaylist:
         mock_ytmusic_instance.add_playlist_items.assert_called_once_with(
             "playlist123",
             ["video1", "video2", "video3"],
+            duplicates=True,
         )
 
     @patch("spotify_to_ytmusic.services.ytmusic_service.os.path.exists")
