@@ -9,6 +9,7 @@ from spotify_to_ytmusic.exceptions import (
     AuthenticationError,
     RateLimitError,
     NetworkError,
+    DuplicatePlaylistError,
     APIError,
 )
 
@@ -275,6 +276,111 @@ class TestGetPlaylistByName:
         playlist = service.get_playlist_by_name("Nonexistent Playlist")
 
         assert playlist is None
+
+    @patch("spotify_to_ytmusic.services.spotify_service.spotipy.Spotify")
+    @patch("spotify_to_ytmusic.services.spotify_service.SpotifyOAuth")
+    def test_raises_value_error_for_empty_name(self, mock_oauth, mock_spotify):
+        """Should raise ValueError when playlist name is empty or None."""
+        mock_spotify.return_value = Mock()
+
+        service = SpotifyService("id", "secret", "redirect")
+
+        # Test empty string
+        with pytest.raises(ValueError) as exc_info:
+            service.get_playlist_by_name("")
+        assert "Playlist name cannot be empty" in str(exc_info.value)
+
+        # Test whitespace only
+        with pytest.raises(ValueError) as exc_info:
+            service.get_playlist_by_name("   ")
+        assert "Playlist name cannot be empty" in str(exc_info.value)
+
+        # Test None
+        with pytest.raises(ValueError) as exc_info:
+            service.get_playlist_by_name(None)
+        assert "Playlist name cannot be empty" in str(exc_info.value)
+
+    @patch("spotify_to_ytmusic.services.spotify_service.spotipy.Spotify")
+    @patch("spotify_to_ytmusic.services.spotify_service.SpotifyOAuth")
+    def test_raises_duplicate_error_on_duplicate_names(self, mock_oauth, mock_spotify):
+        """Should raise DuplicatePlaylistError when multiple playlists have the same name."""
+        mock_sp_instance = Mock()
+        mock_spotify.return_value = mock_sp_instance
+
+        # Mock two playlists with the same name
+        mock_sp_instance.current_user_playlists.return_value = {
+            "items": [{"id": "playlist1"}, {"id": "playlist2"}],
+            "next": None,
+        }
+
+        mock_sp_instance.playlist.side_effect = [
+            {
+                "name": "Duplicate Playlist",
+                "description": "First one",
+                "owner": {"display_name": "User"},
+                "public": True,
+            },
+            {
+                "name": "Duplicate Playlist",
+                "description": "Second one",
+                "owner": {"display_name": "User"},
+                "public": False,
+            },
+        ]
+
+        mock_sp_instance.playlist_tracks.return_value = {"items": [], "next": None}
+
+        service = SpotifyService("id", "secret", "redirect")
+
+        # Should raise DuplicatePlaylistError with playlist details
+        with pytest.raises(DuplicatePlaylistError) as exc_info:
+            service.get_playlist_by_name("Duplicate Playlist")
+
+        assert exc_info.value.playlist_name == "Duplicate Playlist"
+        assert len(exc_info.value.playlists) == 2
+        assert exc_info.value.playlists[0]["name"] == "Duplicate Playlist"
+        assert exc_info.value.playlists[0]["owner"] == "User"
+        assert exc_info.value.playlists[0]["public"] is True
+        assert exc_info.value.playlists[1]["public"] is False
+
+    @patch("spotify_to_ytmusic.services.spotify_service.spotipy.Spotify")
+    @patch("spotify_to_ytmusic.services.spotify_service.SpotifyOAuth")
+    def test_returns_first_match_when_raise_on_duplicates_false(self, mock_oauth, mock_spotify):
+        """Should return first match without raising when raise_on_duplicates is False."""
+        mock_sp_instance = Mock()
+        mock_spotify.return_value = mock_sp_instance
+
+        # Mock two playlists with the same name
+        mock_sp_instance.current_user_playlists.return_value = {
+            "items": [{"id": "playlist1"}, {"id": "playlist2"}],
+            "next": None,
+        }
+
+        mock_sp_instance.playlist.side_effect = [
+            {
+                "name": "Duplicate Playlist",
+                "description": "First one",
+                "owner": {"display_name": "User"},
+                "public": True,
+            },
+            {
+                "name": "Duplicate Playlist",
+                "description": "Second one",
+                "owner": {"display_name": "User"},
+                "public": False,
+            },
+        ]
+
+        mock_sp_instance.playlist_tracks.return_value = {"items": [], "next": None}
+
+        service = SpotifyService("id", "secret", "redirect")
+
+        # Should return first match without raising when raise_on_duplicates=False
+        playlist = service.get_playlist_by_name("Duplicate Playlist", raise_on_duplicates=False)
+
+        assert playlist is not None
+        assert playlist.name == "Duplicate Playlist"
+        assert playlist.description == "First one"
 
 
 class TestParseTrack:

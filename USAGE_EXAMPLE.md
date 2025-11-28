@@ -171,6 +171,98 @@ Failed tracks: 25
 Overall success rate: 94.4%
 ```
 
+### Example 5: Handling Duplicate Playlist Names
+
+If you have multiple playlists with the same name, you need to use the `--playlist-id` option:
+
+```bash
+# First, list all playlists with their IDs
+poetry run spotify-to-ytmusic list-playlists --show-ids
+```
+
+Expected output:
+```
+Found 10 playlists:
+
+#    Playlist Name          Tracks   Spotify ID
+--------------------------------------------------------
+1    Workout Mix            45       3cEYpjA9oz9GiPac4AsH4n
+2  * Chill Vibes            32       7ouMYWpwJ422jRcDAABB
+3  * Chill Vibes            28       8abcDEF9ghijKLMNOOPP
+4    Road Trip 2024         78       9xyZABC0defGHIJKQQRR
+...
+
+* = Duplicate playlist name detected
+```
+
+Then migrate by specific ID:
+```bash
+# Migrate the second "Chill Vibes" playlist
+poetry run spotify-to-ytmusic migrate-playlist --playlist-id 8abcDEF9ghijKLMNOOPP
+```
+
+### Example 6: Duplicate Handling with migrate-playlist
+
+If you try to migrate by name and duplicates exist:
+
+```bash
+poetry run spotify-to-ytmusic migrate-playlist "Chill Vibes"
+```
+
+You'll see:
+```
+Error: Found 2 playlists with name 'Chill Vibes'
+
+#    Playlist ID               Owner                Tracks   Visibility
+--------------------------------------------------------------------------------
+1    7ouMYWpwJ422jRcDAABB      Your Name            32       Public
+2    8abcDEF9ghijKLMNOOPP      Your Name            28       Private
+
+Use --playlist-id to specify which one to migrate:
+  spotify-to-ytmusic migrate-playlist --playlist-id <ID>
+
+Example:
+  spotify-to-ytmusic migrate-playlist --playlist-id 7ouMYWpwJ422jRcDAABB
+```
+
+### Example 7: Duplicate Handling with migrate-all
+
+When migrating all playlists, duplicates are automatically skipped:
+
+```bash
+poetry run spotify-to-ytmusic migrate-all
+```
+
+Output:
+```
+Starting migration of all playlists...
+This will migrate ALL your playlists. Continue? [y/N]: y
+
+Found 10 playlists total
+Skipping 2 playlists with duplicate names (1 unique name)
+Migrating 8 playlists
+
+[... migration happens ...]
+
+============================================================
+MIGRATION SUMMARY
+============================================================
+Total playlists migrated: 8
+Total tracks processed: 380
+Successful tracks: 365
+Failed tracks: 15
+Overall success rate: 96.1%
+
+============================================================
+SKIPPED PLAYLISTS (DUPLICATE NAMES)
+============================================================
+  - Chill Vibes (32 tracks, owner: Your Name, ID: 7ouMYWpwJ422jRcDAABB)
+  - Chill Vibes (28 tracks, owner: Your Name, ID: 8abcDEF9ghijKLMNOOPP)
+
+To migrate these, use --playlist-id:
+  spotify-to-ytmusic migrate-playlist --playlist-id <ID>
+```
+
 ## Tips & Tricks
 
 ### Finding Playlist Names
@@ -280,6 +372,29 @@ poetry run spotify-to-ytmusic list-playlists
 
 # Copy the exact name and use it
 poetry run spotify-to-ytmusic migrate-playlist "Exact Name Here"
+```
+
+### Error: "Found 2 playlists with name..."
+
+**Problem**: You have multiple playlists with the same name
+
+**Solution**:
+```bash
+# List playlists with IDs
+poetry run spotify-to-ytmusic list-playlists --show-ids
+
+# Migrate by specific ID instead of name
+poetry run spotify-to-ytmusic migrate-playlist --playlist-id <ID>
+```
+
+### Playlists Skipped During migrate-all
+
+**Problem**: Some playlists were skipped due to duplicate names
+
+**Solution**: The skipped playlists are listed at the end of the migration. Use the provided IDs to migrate them individually:
+```bash
+# Example from the summary
+spotify-to-ytmusic migrate-playlist --playlist-id 7ouMYWpwJ422jRcDAABB
 ```
 
 ### High Failure Rate

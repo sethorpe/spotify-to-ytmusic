@@ -199,12 +199,68 @@ def migrate_playlist(playlist_name: str, verbose: bool):
 
 ## Testing
 
-Currently, there are no automated tests. Future additions could include:
+The project includes comprehensive unit tests with pytest.
 
-### Unit Tests
+### Running Tests
+
+**IMPORTANT**: Use the `test.sh` script to run tests. This script sets the correct PYTHONPATH to avoid import errors.
+
+```bash
+# Run all tests
+./test.sh
+
+# Run tests with verbose output
+./test.sh tests/ -v
+
+# Run specific test file
+./test.sh tests/unit/test_spotify_service.py -v
+
+# Run with coverage report
+./test.sh tests/ --cov=src/spotify_to_ytmusic --cov-report=html
+```
+
+### PYTHONPATH Issue
+
+**Why we need test.sh**: Python's module import system requires the `src/` directory to be in PYTHONPATH for tests to import the `spotify_to_ytmusic` module. Running `pytest` directly will fail with `ModuleNotFoundError`.
+
+The `test.sh` script solves this by:
+```bash
+export PYTHONPATH="${PWD}/src:${PYTHONPATH}"
+poetry run pytest "$@"
+```
+
+This ensures consistent test execution across all operating systems (macOS, Linux, Windows with WSL/Git Bash).
+
+### Test Coverage
+
+Current test coverage: **50%** (146 tests)
+
+- **Models**: 100% coverage
+- **Exceptions**: 100% coverage
+- **Report Exporter**: 100% coverage
+- **Retry Logic**: 98% coverage
+- **Services**: 74% coverage (excludes some error paths)
+- **CLI**: 0% coverage (integration tests needed)
+
+### Test Structure
+
+```
+tests/
+├── unit/
+│   ├── test_exceptions.py       # Exception classes
+│   ├── test_models.py            # Track, Playlist, Album, MigrationResult
+│   ├── test_spotify_service.py  # Spotify API wrapper
+│   ├── test_ytmusic_service.py  # YouTube Music API wrapper
+│   ├── test_retry.py             # Retry logic and error categorization
+│   ├── test_report_exporter.py   # Report export functionality
+│   └── test_logging_config.py    # Logging configuration
+└── integration/                  # (Future) Integration tests
+```
+
+### Writing New Tests
 
 ```python
-# tests/test_models.py
+# Example: tests/unit/test_models.py
 from spotify_to_ytmusic.models.track import Track
 
 def test_track_search_query():
@@ -217,17 +273,12 @@ def test_track_search_query():
     assert track.search_query == "Test Song Artist One, Artist Two"
 ```
 
-### Integration Tests
+### CI/CD
 
-```python
-# tests/test_spotify_service.py
-from spotify_to_ytmusic.services.spotify_service import SpotifyService
-
-def test_spotify_connection():
-    service = SpotifyService(client_id, client_secret, redirect_uri)
-    user_info = service.get_user_info()
-    assert user_info is not None
-```
+Tests run automatically on GitHub Actions for every push/PR:
+- Python 3.10, 3.11, 3.12, 3.13
+- macOS, Ubuntu, Windows
+- Requires 50% minimum coverage
 
 ## Common Development Tasks
 

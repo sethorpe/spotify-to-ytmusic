@@ -7,8 +7,10 @@ A Python CLI tool to migrate your playlists and albums from Spotify to YouTube M
 - Export playlists from Spotify
 - Smart track matching using ISRC codes and fuzzy search
 - Migrate individual or all playlists
+- Duplicate playlist name handling with interactive resolution
 - Real-time progress indicators with track-by-track updates
 - Detailed migration reports with success rates
+- Export reports to JSON/CSV formats
 - Privacy settings (public/private playlists)
 - Album migration (coming soon)
 
@@ -83,6 +85,9 @@ poetry run spotify-to-ytmusic info
 # List all Spotify playlists
 poetry run spotify-to-ytmusic list-playlists
 
+# List playlists with Spotify IDs (useful for duplicates)
+poetry run spotify-to-ytmusic list-playlists --show-ids
+
 # List saved albums (not yet implemented)
 poetry run spotify-to-ytmusic list-albums
 ```
@@ -95,7 +100,11 @@ poetry run spotify-to-ytmusic migrate-playlist "Playlist Name"
 # Migrate as public playlist
 poetry run spotify-to-ytmusic migrate-playlist "Playlist Name" --public
 
+# Migrate playlist by Spotify ID (useful for playlists with duplicate names)
+poetry run spotify-to-ytmusic migrate-playlist --playlist-id 37i9dQZF1DXcBWIGoYBM5M
+
 # Migrate all playlists (you'll be prompted to confirm)
+# Note: Playlists with duplicate names will be skipped
 poetry run spotify-to-ytmusic migrate-all
 
 # Migrate limited number of playlists for testing
@@ -145,6 +154,12 @@ spotify-to-ytmusic/
 - Some tracks may not be available on YouTube Music
 - Regional restrictions may apply
 - Check the migration report for failed tracks
+
+### Duplicate playlist names
+- If you have multiple playlists with the same name, `migrate-playlist` will show you all matches in a table
+- Use `--playlist-id` to specify exactly which playlist to migrate
+- Run `list-playlists --show-ids` to see all playlist IDs
+- When using `migrate-all`, playlists with duplicate names are automatically skipped and listed in the summary
 
 ## Project Status
 

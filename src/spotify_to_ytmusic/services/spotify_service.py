@@ -12,6 +12,7 @@ from ..exceptions import (
     RateLimitError,
     NetworkError,
     PlaylistNotFoundError,
+    DuplicatePlaylistError,
     APIError,
 )
 from ..utils.retry import retry_with_backoff, categorize_api_error
@@ -142,33 +143,64 @@ class SpotifyService:
         except Exception as e:
             raise categorize_api_error(e, "Spotify") from e
 
-    def get_playlist_by_name(self, name: str) -> Optional[Playlist]:
+    def get_playlist_by_name(
+        self, name: str, raise_on_duplicates: bool = True
+    ) -> Optional[Playlist]:
         """Find a playlist by name.
 
         Args:
             name: The name of the playlist to find
+            raise_on_duplicates: If True, raises DuplicatePlaylistError when multiple playlists
+                               with same name exist. If False, returns first match.
 
         Returns:
-            Playlist object if found, None otherwise
+            Playlist object if found (first match if duplicates exist and raise_on_duplicates=False), None otherwise
 
         Raises:
-            PlaylistNotFoundError: If playlist is not found
+            ValueError: If name is empty or None
+            DuplicatePlaylistError: If multiple playlists with same name exist and raise_on_duplicates=True
             RateLimitError: If rate limit is exceeded after retries
             NetworkError: If network errors persist after retries
             APIError: If API errors persist after retries
         """
+        # Validate playlist name
+        if not name or not name.strip():
+            raise ValueError("Playlist name cannot be empty")
+
         try:
             playlists = self.get_user_playlists()
-            for playlist in playlists:
-                if playlist.name.lower() == name.lower():
-                    logger.info(f"Found playlist: {name}")
-                    return playlist
 
-            # Playlist not found
-            logger.warning(f"Playlist not found: {name}")
-            return None
+            # Find all matching playlists
+            matches = [p for p in playlists if p.name.lower() == name.lower()]
 
-        except (RateLimitError, NetworkError, APIError):
+            if not matches:
+                # Playlist not found
+                logger.warning(f"Playlist not found: {name}")
+                return None
+
+            if len(matches) > 1:
+                if raise_on_duplicates:
+                    # Raise exception with detailed playlist information
+                    playlist_details = [
+                        {
+                            "name": p.name,
+                            "id": p.spotify_id,
+                            "owner": p.owner,
+                            "tracks": len(p.tracks),
+                            "public": p.public,
+                        }
+                        for p in matches
+                    ]
+                    raise DuplicatePlaylistError(name, playlist_details)
+                else:
+                    # Return first match without raising (for migrate-all)
+                    logger.info(f"Found {len(matches)} playlists with name '{name}', using first match")
+                    return matches[0]
+
+            logger.info(f"Found playlist: {name}")
+            return matches[0]
+
+        except (RateLimitError, NetworkError, APIError, DuplicatePlaylistError):
             # Re-raise already categorized errors
             raise
         except Exception as e:
@@ -183,13 +215,14 @@ class SpotifyService:
         Returns:
             Playlist object
         """
-        return self._fetch_playlist_details(playlist_id)
+        return self._fetch_playlist_details(playlist_id, warn_on_empty_name=True)
 
-    def _fetch_playlist_details(self, playlist_id: str) -> Playlist:
+    def _fetch_playlist_details(self, playlist_id: str, warn_on_empty_name: bool = False) -> Playlist:
         """Fetch detailed information about a playlist.
 
         Args:
             playlist_id: Spotify playlist ID
+            warn_on_empty_name: If True, warn when playlist has no name
 
         Returns:
             Playlist object with all tracks
@@ -197,8 +230,18 @@ class SpotifyService:
         playlist_data = self.sp.playlist(playlist_id)
         tracks = self._fetch_playlist_tracks(playlist_id)
 
+        # Handle playlists with empty/missing names
+        playlist_name = playlist_data.get("name", "").strip()
+        if not playlist_name:
+            playlist_name = f"Untitled Playlist ({playlist_id[:8]})"
+            if warn_on_empty_name:
+                logger.warning(
+                    f"Playlist '{playlist_id}' has no name. "
+                    f"Using generated name: '{playlist_name}'"
+                )
+
         return Playlist(
-            name=playlist_data["name"],
+            name=playlist_name,
             description=playlist_data.get("description", ""),
             tracks=tracks,
             spotify_id=playlist_id,
