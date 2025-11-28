@@ -59,8 +59,11 @@ class SpotifyService:
         initial_delay=1.0,
         exceptions=(NetworkError, RateLimitError, APIError),
     )
-    def get_user_playlists(self) -> List[Playlist]:
+    def get_user_playlists(self, show_progress: bool = False) -> List[Playlist]:
         """Fetch all playlists for the authenticated user with full track details.
+
+        Args:
+            show_progress: If True, displays a progress bar during fetching
 
         Returns:
             List of Playlist objects with all tracks loaded
@@ -70,21 +73,42 @@ class SpotifyService:
             NetworkError: If network errors persist after retries
             APIError: If API errors persist after retries
         """
+        from tqdm import tqdm
+
         playlists = []
 
         try:
+            # Fetch all playlists
             results = self.sp.current_user_playlists()
+
+            # Create progress bar if requested (use total if available)
+            pbar = None
+            if show_progress:
+                total_playlists = results.get("total", 0)
+                if total_playlists > 0:
+                    pbar = tqdm(
+                        total=total_playlists,
+                        desc="Fetching playlists",
+                        unit="playlist",
+                        ncols=80
+                    )
 
             while results:
                 for item in results["items"]:
                     playlist = self._fetch_playlist_details(item["id"])
                     playlists.append(playlist)
 
+                    if pbar:
+                        pbar.update(1)
+
                 # Handle pagination
                 if results["next"]:
                     results = self.sp.next(results)
                 else:
                     break
+
+            if pbar:
+                pbar.close()
 
             logger.info(f"Fetched {len(playlists)} playlists from Spotify")
             return playlists
@@ -144,7 +168,7 @@ class SpotifyService:
             raise categorize_api_error(e, "Spotify") from e
 
     def get_playlist_by_name(
-        self, name: str, raise_on_duplicates: bool = True
+        self, name: str, raise_on_duplicates: bool = True, show_progress: bool = False
     ) -> Optional[Playlist]:
         """Find a playlist by name.
 
@@ -152,6 +176,7 @@ class SpotifyService:
             name: The name of the playlist to find
             raise_on_duplicates: If True, raises DuplicatePlaylistError when multiple playlists
                                with same name exist. If False, returns first match.
+            show_progress: If True, displays a progress bar while searching for the playlist
 
         Returns:
             Playlist object if found (first match if duplicates exist and raise_on_duplicates=False), None otherwise
@@ -168,7 +193,7 @@ class SpotifyService:
             raise ValueError("Playlist name cannot be empty")
 
         try:
-            playlists = self.get_user_playlists()
+            playlists = self.get_user_playlists(show_progress=show_progress)
 
             # Find all matching playlists
             matches = [p for p in playlists if p.name.lower() == name.lower()]

@@ -312,9 +312,10 @@ def migrate_playlist(
                 sys.exit(1)
         else:
             click.echo(f"Starting migration for: {playlist_name}\n")
-            click.echo("Searching for playlist on Spotify...")
+            click.echo("Searching for playlist on Spotify...\n")
             try:
-                playlist = spotify.get_playlist_by_name(playlist_name)
+                playlist = spotify.get_playlist_by_name(playlist_name, show_progress=True)
+                click.echo()  # Add blank line after progress bar
             except ValueError as e:
                 click.echo(f"Error: {str(e)}", err=True)
                 sys.exit(1)
@@ -457,8 +458,10 @@ def migrate_all(
     ytmusic = get_ytmusic_service()
 
     try:
-        # Get all playlists
-        playlists = spotify.get_user_playlists()
+        # Get all playlists with progress indicator
+        click.echo("Fetching all playlists from Spotify...\n")
+        playlists = spotify.get_user_playlists(show_progress=True)
+        click.echo()  # Add blank line after progress bar
 
         if limit:
             playlists = playlists[:limit]
