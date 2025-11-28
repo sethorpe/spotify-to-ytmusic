@@ -2,8 +2,9 @@
 
 Track future enhancements and bug fixes for the Spotify to YouTube Music migrator.
 
-## [DONE] Completed (MVP)
+## [DONE] Completed Features
 
+### MVP (v0.1.0)
 - [x] Project setup with Poetry
 - [x] Data models (Track, Playlist, Album, MigrationResult)
 - [x] Spotify API integration (authentication, playlist fetching)
@@ -14,6 +15,16 @@ Track future enhancements and bug fixes for the Spotify to YouTube Music migrato
 - [x] Bulk playlist migration
 - [x] Migration reporting
 - [x] Documentation (README, USAGE, QUICKSTART, DEVELOPMENT)
+
+### Post-MVP Enhancements
+- [x] **Progress Indicators** (PR #1) - Real-time progress bars with tqdm
+- [x] **List-Playlists Optimization** (PR #2) - Fast playlist listing
+- [x] **Error Handling & Retry Logic** (PR #3) - Exponential backoff, rate limiting
+- [x] **Unit Tests & CI/CD** (PR #4) - 146 tests, GitHub Actions pipeline
+- [x] **Duplicate Track Handling** (PR #5) - Fixed empty playlist issue
+- [x] **Migration Report Export** (PR #6) - JSON/CSV export, failed tracks list
+- [x] **Duplicate Playlist Name Handling** (PR #7) - Fail-fast with table display, auto-skip in migrate-all
+- [x] **Playlist Search Progress Feedback** (PR #8) - Progress bar during playlist fetching
 
 ## [IN PROGRESS] In Progress
 
@@ -28,22 +39,8 @@ None currently
   - Add album search/matching logic
   - Handle album vs playlist differences in YT Music
 
-- [ ] **Better Error Handling**
-  - Retry logic for failed track searches
-  - Rate limit detection and automatic backoff
-  - Better error messages with suggested fixes
-
-- [ ] **Progress Indicators**
-  - Use tqdm for progress bars
-  - Show estimated time remaining
-  - Better visual feedback during long migrations
 
 ### Medium Priority
-
-- [ ] **Migration Reports**
-  - Export results to CSV/JSON
-  - Save failed tracks list for manual review
-  - Generate summary statistics
 
 - [ ] **Configuration Management**
   - Config file for settings (retries, timeout, etc.)
@@ -149,6 +146,6 @@ Once deployed:
 
 ---
 
-**Last Updated**: November 6, 2025
-**Current Version**: 0.1.0 (MVP)
-**Status**: Proof of Concept Complete
+**Last Updated**: November 27, 2025
+**Current Version**: 0.1.0 (MVP + Enhancements)
+**Status**: Production Ready
