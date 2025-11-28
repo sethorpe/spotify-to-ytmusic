@@ -54,6 +54,17 @@ class PlaylistNotFoundError(SpotifyToYTMusicError):
         super().__init__(f"Playlist not found: {playlist_name}")
 
 
+class DuplicatePlaylistError(SpotifyToYTMusicError):
+    """Raised when multiple playlists with the same name are found."""
+
+    def __init__(self, playlist_name: str, playlists: List[dict]) -> None:
+        self.playlist_name = playlist_name
+        self.playlists = playlists
+        super().__init__(
+            f"Found {len(playlists)} playlists with name '{playlist_name}'"
+        )
+
+
 class APIError(SpotifyToYTMusicError):
     """Raised when an API call fails."""
 

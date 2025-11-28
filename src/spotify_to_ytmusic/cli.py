@@ -18,6 +18,7 @@ from .exceptions import (
     RateLimitError,
     NetworkError,
     PlaylistNotFoundError,
+    DuplicatePlaylistError,
     APIError,
     MaxRetriesExceededError,
 )
@@ -132,7 +133,13 @@ def setup_ytmusic():
 
 
 @cli.command()
-def list_playlists():
+@click.option(
+    "--show-ids",
+    is_flag=True,
+    default=False,
+    help="Show Spotify playlist IDs (useful for --playlist-id option)",
+)
+def list_playlists(show_ids: bool):
     """List all your Spotify playlists."""
     click.echo("Fetching your Spotify playlists...\n")
 
@@ -149,8 +156,35 @@ def list_playlists():
             return
 
         click.echo(f"Found {len(playlists)} playlists:\n")
-        for i, playlist in enumerate(playlists, 1):
-            click.echo(f"{i}. {playlist['name']} ({playlist['track_count']} tracks)")
+
+        if show_ids:
+            # Display as table with IDs
+            playlist_names = [p['name'] for p in playlists]
+            duplicate_names = {name for name in playlist_names if playlist_names.count(name) > 1}
+
+            # Print table header
+            click.echo(f"{'#':<4} {'Name':<50} {'Tracks':<8} {'Playlist ID'}")
+            click.echo("-" * 100)
+
+            for i, playlist in enumerate(playlists, 1):
+                name = playlist['name']
+                track_count = playlist['track_count']
+                playlist_id = playlist['id']
+
+                # Truncate long names and mark duplicates
+                display_name = name[:47] + "..." if len(name) > 50 else name
+                if name in duplicate_names:
+                    display_name += " *"
+
+                click.echo(f"{i:<4} {display_name:<50} {track_count:<8} {playlist_id}")
+
+            # Show legend if duplicates exist
+            if duplicate_names:
+                click.echo("\n* Indicates duplicate playlist names")
+        else:
+            # Simple list format without IDs
+            for i, playlist in enumerate(playlists, 1):
+                click.echo(f"{i}. {playlist['name']} ({playlist['track_count']} tracks)")
 
     except RateLimitError as e:
         click.echo(f"\nRate Limit Error: {str(e)}", err=True)
@@ -195,7 +229,13 @@ def list_albums():
 
 
 @cli.command()
-@click.argument("playlist_name")
+@click.argument("playlist_name", required=False)
+@click.option(
+    "--playlist-id",
+    type=str,
+    default=None,
+    help="Spotify playlist ID (use this to migrate a specific playlist when duplicates exist)",
+)
 @click.option(
     "--public/--private",
     default=False,
@@ -226,7 +266,8 @@ def list_albums():
     help="Export CSV as summary (playlist-level) instead of detailed (track-level)",
 )
 def migrate_playlist(
-    playlist_name: str,
+    playlist_name: Optional[str],
+    playlist_id: Optional[str],
     public: bool,
     export_json: Optional[str],
     export_csv: Optional[str],
@@ -236,8 +277,22 @@ def migrate_playlist(
     """Migrate a specific Spotify playlist to YouTube Music.
 
     PLAYLIST_NAME: The name of the playlist to migrate (case-insensitive)
+
+    Use --playlist-id when you have duplicate playlist names or want to migrate
+    a specific playlist by its Spotify ID.
     """
-    click.echo(f"Starting migration for: {playlist_name}\n")
+    # Validate that at least one identifier is provided
+    if not playlist_name and not playlist_id:
+        click.echo("Error: You must provide either PLAYLIST_NAME or --playlist-id", err=True)
+        click.echo("\nExamples:", err=True)
+        click.echo("  spotify-to-ytmusic migrate-playlist \"My Playlist\"")
+        click.echo("  spotify-to-ytmusic migrate-playlist --playlist-id 37i9dQZF1DXcBWIGoYBM5M")
+        click.echo("\nTo get playlist IDs, run:", err=True)
+        click.echo("  spotify-to-ytmusic list-playlists --show-ids")
+        sys.exit(1)
+
+    if playlist_name and playlist_id:
+        click.echo("Warning: Both playlist name and ID provided. Using playlist ID.", err=True)
 
     # Initialize services
     spotify = get_spotify_service()
@@ -245,13 +300,49 @@ def migrate_playlist(
 
     try:
         # Find the playlist
-        click.echo("Searching for playlist on Spotify...")
-        playlist = spotify.get_playlist_by_name(playlist_name)
+        if playlist_id:
+            click.echo(f"Fetching playlist by ID: {playlist_id}...")
+            try:
+                playlist = spotify.get_playlist_by_id(playlist_id)
+                click.echo(f"Starting migration for: {playlist.name}\n")
+            except Exception as e:
+                click.echo(f"Error fetching playlist with ID '{playlist_id}': {str(e)}", err=True)
+                click.echo("\nMake sure the playlist ID is correct.", err=True)
+                click.echo("Run 'list-playlists --show-ids' to see available playlists and their IDs.")
+                sys.exit(1)
+        else:
+            click.echo(f"Starting migration for: {playlist_name}\n")
+            click.echo("Searching for playlist on Spotify...")
+            try:
+                playlist = spotify.get_playlist_by_name(playlist_name)
+            except ValueError as e:
+                click.echo(f"Error: {str(e)}", err=True)
+                sys.exit(1)
+            except DuplicatePlaylistError as e:
+                # Display formatted table with duplicate playlist details
+                click.echo(f"\nError: Found {len(e.playlists)} playlists with name '{e.playlist_name}'\n", err=True)
 
-        if not playlist:
-            click.echo(f"Playlist not found: {playlist_name}", err=True)
-            click.echo("\nRun 'list-playlists' to see available playlists.")
-            sys.exit(1)
+                # Print table header
+                click.echo(f"{'#':<4} {'Playlist ID':<25} {'Owner':<20} {'Tracks':<8} {'Visibility'}", err=True)
+                click.echo("-" * 80, err=True)
+
+                for i, p in enumerate(e.playlists, 1):
+                    visibility = "Public" if p['public'] else "Private"
+                    click.echo(
+                        f"{i:<4} {p['id']:<25} {p['owner']:<20} {p['tracks']:<8} {visibility}",
+                        err=True
+                    )
+
+                click.echo("\nUse --playlist-id to specify which one to migrate:", err=True)
+                click.echo(f"  spotify-to-ytmusic migrate-playlist --playlist-id <ID>", err=True)
+                click.echo("\nExample:", err=True)
+                click.echo(f"  spotify-to-ytmusic migrate-playlist --playlist-id {e.playlists[0]['id']}", err=True)
+                sys.exit(1)
+
+            if not playlist:
+                click.echo(f"Playlist not found: {playlist_name}", err=True)
+                click.echo("\nRun 'list-playlists' to see available playlists.")
+                sys.exit(1)
 
         click.echo(f"Found: {playlist}\n")
 
@@ -372,15 +463,38 @@ def migrate_all(
         if limit:
             playlists = playlists[:limit]
 
-        click.echo(f"Found {len(playlists)} playlists to migrate\n")
+        # Detect duplicate playlist names before migration
+        playlist_names = [p.name for p in playlists]
+        duplicate_names = {name for name in playlist_names if playlist_names.count(name) > 1}
+
+        # Filter out duplicates
+        playlists_to_migrate = []
+        skipped_duplicates = []
+
+        for playlist in playlists:
+            if playlist.name in duplicate_names:
+                skipped_duplicates.append({
+                    "name": playlist.name,
+                    "id": playlist.spotify_id,
+                    "owner": playlist.owner,
+                    "tracks": len(playlist.tracks),
+                })
+            else:
+                playlists_to_migrate.append(playlist)
+
+        click.echo(f"Found {len(playlists)} playlists total")
+        if skipped_duplicates:
+            unique_skipped_names = {p["name"] for p in skipped_duplicates}
+            click.echo(f"Skipping {len(skipped_duplicates)} playlists with duplicate names ({len(unique_skipped_names)} unique names)")
+        click.echo(f"Migrating {len(playlists_to_migrate)} playlists\n")
 
         results = []
 
         # Migrate each playlist with progress bar
         with tqdm(
-            total=len(playlists), desc="Overall progress", unit="playlist", position=0
+            total=len(playlists_to_migrate), desc="Overall progress", unit="playlist", position=0
         ) as pbar:
-            for playlist in playlists:
+            for playlist in playlists_to_migrate:
                 pbar.set_postfix_str(f"Migrating: {playlist.name[:40]}...")
 
                 playlist.public = public
@@ -399,6 +513,9 @@ def migrate_all(
         failed_tracks_count = sum(len(r.failed_tracks) for r in results)
 
         click.echo(f"Total playlists migrated: {len(results)}")
+        if skipped_duplicates:
+            unique_skipped_names = {p["name"] for p in skipped_duplicates}
+            click.echo(f"Skipped playlists (duplicates): {len(skipped_duplicates)} ({len(unique_skipped_names)} unique names)")
         click.echo(f"Total tracks processed: {total_tracks}")
         click.echo(f"Successful tracks: {successful_tracks}")
         click.echo(f"Failed tracks: {failed_tracks_count}")
@@ -406,6 +523,16 @@ def migrate_all(
         if total_tracks > 0:
             success_rate = (successful_tracks / total_tracks) * 100
             click.echo(f"Overall success rate: {success_rate:.1f}%")
+
+        # Show skipped playlists details if any
+        if skipped_duplicates:
+            click.echo("\n" + "=" * 60)
+            click.echo("SKIPPED PLAYLISTS (DUPLICATE NAMES)")
+            click.echo("=" * 60)
+            for p in skipped_duplicates:
+                click.echo(f"  - {p['name']} ({p['tracks']} tracks, owner: {p['owner']}, ID: {p['id']})")
+            click.echo("\nTo migrate these, use --playlist-id:")
+            click.echo("  spotify-to-ytmusic migrate-playlist --playlist-id <ID>")
 
         # Export reports if requested
         export_reports(results, export_json, export_csv, export_failed, csv_summary)

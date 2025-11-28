@@ -9,6 +9,7 @@ from spotify_to_ytmusic.exceptions import (
     NetworkError,
     TrackNotFoundError,
     PlaylistNotFoundError,
+    DuplicatePlaylistError,
     APIError,
     MaxRetriesExceededError,
 )
@@ -147,6 +148,39 @@ class TestPlaylistNotFoundError:
         """PlaylistNotFoundError should format message correctly."""
         error = PlaylistNotFoundError("My Playlist")
         assert str(error) == "Playlist not found: My Playlist"
+
+
+class TestDuplicatePlaylistError:
+    """Tests for DuplicatePlaylistError."""
+
+    def test_inherits_from_base(self):
+        """DuplicatePlaylistError should inherit from base exception."""
+        assert issubclass(DuplicatePlaylistError, SpotifyToYTMusicError)
+
+    def test_has_playlist_name_attribute(self):
+        """DuplicatePlaylistError should have playlist_name attribute."""
+        playlists = [{"name": "Playlist", "id": "1", "owner": "User", "tracks": 10, "public": True}]
+        error = DuplicatePlaylistError("My Playlist", playlists)
+        assert error.playlist_name == "My Playlist"
+
+    def test_has_playlists_attribute(self):
+        """DuplicatePlaylistError should have playlists attribute."""
+        playlists = [
+            {"name": "Playlist", "id": "1", "owner": "User1", "tracks": 10, "public": True},
+            {"name": "Playlist", "id": "2", "owner": "User2", "tracks": 5, "public": False},
+        ]
+        error = DuplicatePlaylistError("My Playlist", playlists)
+        assert error.playlists == playlists
+        assert len(error.playlists) == 2
+
+    def test_message_formatting(self):
+        """DuplicatePlaylistError should format message correctly."""
+        playlists = [
+            {"name": "Playlist", "id": "1", "owner": "User1", "tracks": 10, "public": True},
+            {"name": "Playlist", "id": "2", "owner": "User2", "tracks": 5, "public": False},
+        ]
+        error = DuplicatePlaylistError("My Playlist", playlists)
+        assert str(error) == "Found 2 playlists with name 'My Playlist'"
 
 
 class TestAPIError:
